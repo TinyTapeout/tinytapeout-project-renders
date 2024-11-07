@@ -10,11 +10,21 @@ import sys
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import List, Optional
 
 from klayout.lay import LayoutView
 
 SCRIPT_DIR = Path(__file__).parent
+
+TECHNOLOGIES = {
+    "sky130A": {
+        "boundary": "prBoundary.boundary",
+        "hide_layers": ["areaid.standardc", "areaid.lowTapDensity"],
+    },
+    "sg13g2": {
+        "boundary": "235/4",
+        "hide_layers": ["235/4"],
+    },
+}
 
 
 def download_gds(shuttle_id: str, macro: str) -> Path:
@@ -60,17 +70,17 @@ def download_gds(shuttle_id: str, macro: str) -> Path:
 def render_gds(
     gds_path: str,
     output_path: str,
+    pdk: str,
     scale: float = 1.0,
-    only_layers: Optional[List[str]] = None,
-    hide_layers: Optional[List[str]] = None,
     is_rom=False,
 ):
-    BOUNDARY_LAYER = "prBoundary.boundary"
+    BOUNDARY_LAYER = TECHNOLOGIES[pdk]["boundary"]
+    hide_layers = TECHNOLOGIES[pdk]["hide_layers"]
 
     lv = LayoutView()
     lv.load_layout(gds_path)
     lv.max_hier()
-    lv.load_layer_props(SCRIPT_DIR / "lyp/sky130A.lyp")
+    lv.load_layer_props(SCRIPT_DIR / "lyp" / f"{pdk}.lyp")
 
     if is_rom:
         layout = lv.cellview(0).layout()
@@ -88,12 +98,14 @@ def render_gds(
 
     bbox = None
     for layer in lv.each_layer():
-        layer_name = layer.name.split("-")[0].strip() if "-" in layer.name else ""
+        layer_name = layer.name
+        if pdk == "sky130A":
+            layer_name = layer.name.split("-")[0].strip() if "-" else ""
+        if layer_name == "":
+            layer_name = f"{layer.source_layer}/{layer.source_datatype}"
         if layer_name == BOUNDARY_LAYER:
             bbox = layer.bbox()
-            layer.visible = True
-        elif only_layers is not None:
-            layer.visible = layer_name in only_layers
+            layer.visible = layer_name not in hide_layers
         elif hide_layers is not None:
             layer.visible = layer_name not in hide_layers and layer_name != ""
         else:
@@ -116,6 +128,8 @@ def main(shuttle_id: str, scale: float = 1.0):
         project_list = json.load(req)["projects"]
     logging.info(f"Found {len(project_list)} projects in shuttle {shuttle_id}")
 
+    pdk = "sg13g2" if shuttle_id.startswith("ttihp") else "sky130A"
+
     for project in project_list:
         logging.info(f"Rendering {project['macro']}")
         gds_file = download_gds(shuttle_id, project["macro"])
@@ -126,8 +140,8 @@ def main(shuttle_id: str, scale: float = 1.0):
         render_gds(
             gds_file,
             png_dir / "render.png",
+            pdk=pdk,
             scale=scale,
-            hide_layers=["areaid.standardc", "areaid.lowTapDensity"],
             is_rom=project["macro"] == "tt_um_chip_rom",
         )
 

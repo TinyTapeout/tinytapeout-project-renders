@@ -6031,6 +6031,9 @@
     <name>isoNWell.drawing</name>
     <source>257/0</source>
   </properties>
+  <properties>
+    <source>*/*@*</source>
+  </properties>  
   <custom-dither-pattern>
     <pattern>
       <line>................</line>
