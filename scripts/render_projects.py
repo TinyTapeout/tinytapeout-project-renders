@@ -11,6 +11,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+from klayout.db import Layout, SaveLayoutOptions
 from klayout.lay import LayoutView
 
 SCRIPT_DIR = Path(__file__).parent
@@ -50,7 +51,8 @@ def download_gds(shuttle_id: str, macro: str) -> Path:
         sys.exit(1)
 
     gds_url = shuttle["project_gds_url_template"].format(macro=macro)
-    if macro == "tt_um_chip_rom":
+    is_rom = macro == "tt_um_chip_rom"
+    if is_rom:
         gds_url = shuttle["gds_url"]
     logging.info(f"Downloading GDS file from {gds_url}")
 
@@ -64,6 +66,18 @@ def download_gds(shuttle_id: str, macro: str) -> Path:
         else:
             f.write(response.read())
 
+    if is_rom:
+        layout = Layout()
+        layout.read(target_path)
+        for cell in layout.each_cell():
+            if cell.name == "tt_um_chip_rom" or cell.name.endswith("_tt_um_chip_rom"):
+                rom_cell = cell
+        if not rom_cell:
+            raise Exception("ROM cell not found")
+        save_options = SaveLayoutOptions()
+        save_options.add_cell(rom_cell.cell_index())
+        layout.write(target_path, options=save_options)
+
     return target_path
 
 
@@ -72,7 +86,6 @@ def render_gds(
     output_path: str,
     pdk: str,
     scale: float = 1.0,
-    is_rom=False,
 ):
     BOUNDARY_LAYER = TECHNOLOGIES[pdk]["boundary"]
     hide_layers = TECHNOLOGIES[pdk]["hide_layers"]
@@ -81,15 +94,6 @@ def render_gds(
     lv.load_layout(gds_path)
     lv.max_hier()
     lv.load_layer_props(SCRIPT_DIR / "lyp" / f"{pdk}.lyp")
-
-    if is_rom:
-        layout = lv.cellview(0).layout()
-        for cell in layout.each_cell():
-            if cell.name == "tt_um_chip_rom" or cell.name.endswith("_tt_um_chip_rom"):
-                rom_cell = cell
-        if not rom_cell:
-            raise Exception("ROM cell not found")
-        lv.cellview(0).set_cell_name(rom_cell.name)
 
     lv.set_config("background-color", "#ffffff")
     lv.set_config("grid-visible", "false")
@@ -142,7 +146,6 @@ def main(shuttle_id: str, scale: float = 1.0):
             png_dir / "render.png",
             pdk=pdk,
             scale=scale,
-            is_rom=project["macro"] == "tt_um_chip_rom",
         )
 
 
