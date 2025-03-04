@@ -3,7 +3,7 @@ SPDX-License-Identifier: Apache-2.0
 Copyright (C) 2025 Tiny Tapeout LTD
 Author: Uri Shaked
 
-Converts all shuttle GDS files to glTF format. Optionally uploads the results to S3.
+Upload shuttle project GDS files to S3/R2.
 
 To run this script, you need to have the following environment variables set:
 
@@ -29,7 +29,6 @@ from pathlib import Path
 import boto3
 from dotenv import load_dotenv
 
-from GDS2glTF.gds2gltf import gds2gltf
 from render_projects import download_gds
 
 SCRIPT_DIR = Path(__file__).parent
@@ -44,24 +43,15 @@ def main(shuttle_id: str, upload_bucket=None):
         project_list = json.load(req)["projects"]
     logging.info(f"Found {len(project_list)} projects in shuttle {shuttle_id}")
 
-    pdk = "sg13g2" if shuttle_id.startswith("ttihp") else "sky130A"
-
     for project in project_list:
         macro = project["macro"]
         gds_file = download_gds(shuttle_id, macro)
 
-        logging.info(f"Converting {macro}")
-        gltf_file = SCRIPT_DIR / "gltf" / shuttle_id / (macro + ".gds.gltf")
-        gltf_file.parent.mkdir(parents=True, exist_ok=True)
-
-        logging.info(f"Writing {gltf_file}")
-        gds2gltf(gds_file, gltf_file, pdk_name=pdk)
-
         if upload_bucket:
             logging.info("Uploading to S3...")
-            with open(gltf_file, "rb") as f:
+            with open(gds_file, "rb") as f:
                 upload_bucket.put_object(
-                    Key=f"{shuttle_id}/{macro}/{macro}.gds.gltf",
+                    Key=f"{shuttle_id}/{macro}/{macro}.gds",
                     Body=f,
                 )
 
@@ -72,12 +62,6 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Update shuttle index")
     parser.add_argument("shuttle_id", type=str, help="Shuttle ID")
-    parser.add_argument(
-        "-u",
-        "--upload",
-        action="store_true",
-        help="Upload to S3/R2",
-    )
     parser.add_argument(
         "--s3-endpoint",
         type=str,
@@ -92,9 +76,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    upload_bucket = None
-    if args.upload:
-        s3 = boto3.resource("s3", endpoint_url=args.s3_endpoint)
-        upload_bucket = s3.Bucket(args.s3_bucket)
+    s3 = boto3.resource("s3", endpoint_url=args.s3_endpoint)
+    upload_bucket = s3.Bucket(args.s3_bucket)
 
     main(args.shuttle_id, upload_bucket=upload_bucket)
