@@ -22,8 +22,8 @@ TECHNOLOGIES = {
         "hide_layers": ["areaid.standardc", "areaid.lowTapDensity"],
     },
     "sg13g2": {
-        "boundary": "235/4",
-        "hide_layers": ["235/4"],
+        "boundary": "prBoundary.boundary",
+        "hide_layers": ["prBoundary.boundary"],
     },
 }
 
