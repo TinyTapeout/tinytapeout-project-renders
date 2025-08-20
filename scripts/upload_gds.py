@@ -3,7 +3,7 @@ SPDX-License-Identifier: Apache-2.0
 Copyright (C) 2025 Tiny Tapeout LTD
 Author: Uri Shaked
 
-Upload shuttle project GDS files to S3/R2.
+Upload shuttle project GDS/OAS files to S3/R2.
 
 To run this script, you need to have the following environment variables set:
 
@@ -22,16 +22,22 @@ import argparse
 import json
 import logging
 import os
-import urllib.parse
 import urllib.request
 from pathlib import Path
 
 import boto3
 from dotenv import load_dotenv
+from klayout.db import Layout
 
 from render_projects import download_gds
 
 SCRIPT_DIR = Path(__file__).parent
+
+
+def gds_to_oas(gds_file: str, oas_file: str):
+    layout = Layout()
+    layout.read(gds_file)
+    layout.write(oas_file)
 
 
 def main(shuttle_id: str, upload_bucket=None):
@@ -46,12 +52,19 @@ def main(shuttle_id: str, upload_bucket=None):
     for project in project_list:
         macro = project["macro"]
         gds_file = download_gds(shuttle_id, macro)
+        oas_file = gds_file.with_suffix(".oas")
+        gds_to_oas(gds_file, oas_file)
 
         if upload_bucket:
             logging.info("Uploading to S3...")
             with open(gds_file, "rb") as f:
                 upload_bucket.put_object(
                     Key=f"{shuttle_id}/{macro}/{macro}.gds",
+                    Body=f,
+                )
+            with open(oas_file, "rb") as f:
+                upload_bucket.put_object(
+                    Key=f"{shuttle_id}/{macro}/{macro}.oas",
                     Body=f,
                 )
 
