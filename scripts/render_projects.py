@@ -130,6 +130,7 @@ def main(shuttle_id: str, scale: float = 1.0):
     )
     with urllib.request.urlopen(req) as req:
         project_list = json.load(req)["projects"]
+    project_list = [p for p in project_list if p.get("type") != "subtile"]
     logging.info(f"Found {len(project_list)} projects in shuttle {shuttle_id}")
 
     pdk = "sg13g2" if shuttle_id.startswith("ttihp") else "sky130A"

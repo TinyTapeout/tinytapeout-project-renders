@@ -47,6 +47,7 @@ def main(shuttle_id: str, upload_bucket=None):
     )
     with urllib.request.urlopen(req) as req:
         project_list = json.load(req)["projects"]
+    project_list = [p for p in project_list if p.get("type") != "subtile"]
     logging.info(f"Found {len(project_list)} projects in shuttle {shuttle_id}")
 
     for project in project_list:
