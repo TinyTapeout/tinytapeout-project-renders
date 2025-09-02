@@ -30,10 +30,14 @@ TECHNOLOGIES = {
 
 def download_gds(shuttle_id: str, macro: str) -> Path:
     target_path = SCRIPT_DIR / "gds" / shuttle_id / f"{macro}.gds"
+    target_oas = target_path.with_suffix(".oas")
     target_path.parent.mkdir(parents=True, exist_ok=True)
     if target_path.exists():
         logging.info(f"Found existing GDS file at {target_path}, skipping download")
         return target_path
+    if target_oas.exists():
+        logging.info(f"Found existing OAS file at {target_oas}, skipping download")
+        return target_oas
 
     # Download the main index file from the Tiny Tapeout server
     url = "https://index.tinytapeout.com/index.json"
@@ -56,7 +60,17 @@ def download_gds(shuttle_id: str, macro: str) -> Path:
         gds_url = shuttle["gds_url"]
     logging.info(f"Downloading GDS file from {gds_url}")
 
-    response = urllib.request.urlopen(gds_url)
+    try:
+        response = urllib.request.urlopen(gds_url)
+    except urllib.error.HTTPError as e:
+        if e.code == 404 and gds_url.endswith(".gds"):
+            oas_url = gds_url[:-4] + ".oas"
+            target_path = target_oas
+            logging.info(f"GDS not found, trying OAS file from {oas_url}")
+            response = urllib.request.urlopen(oas_url)
+        else:
+            raise
+
     with open(target_path, "wb") as f:
         if gds_url.endswith(".gz"):
             import gzip
