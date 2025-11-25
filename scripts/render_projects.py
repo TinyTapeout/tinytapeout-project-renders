@@ -7,7 +7,6 @@ import argparse
 import json
 import logging
 import sys
-import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -24,6 +23,10 @@ TECHNOLOGIES = {
     "sg13g2": {
         "boundary": "prBoundary.boundary",
         "hide_layers": ["prBoundary.boundary"],
+    },
+    "gf180mcuD": {
+        "boundary": "PR_bndry",
+        "hide_layers": ["PR_bndry", "V5_XTOR"],
     },
 }
 
@@ -116,7 +119,7 @@ def render_gds(
 
     bbox = None
     for layer in lv.each_layer():
-        layer_name = layer.name
+        layer_name = layer.name or layer.source_name
         if pdk == "sky130A":
             layer_name = layer.name.split("-")[0].strip() if "-" else ""
         if layer_name == "":
@@ -147,7 +150,13 @@ def main(shuttle_id: str, scale: float = 1.0):
     project_list = [p for p in project_list if p.get("type") != "subtile"]
     logging.info(f"Found {len(project_list)} projects in shuttle {shuttle_id}")
 
-    pdk = "sg13g2" if shuttle_id.startswith("ttihp") else "sky130A"
+    pdk = (
+        "sg13g2"
+        if shuttle_id.startswith("ttihp")
+        else "gf180mcuD"
+        if shuttle_id.startswith("ttgf")
+        else "sky130A"
+    )
 
     for project in project_list:
         logging.info(f"Rendering {project['macro']}")
